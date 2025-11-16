@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>タスク優先度管理</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+            background-color: #f5f5f7;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #1d1d1f;
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+
+        /* 新規タスク追加フォーム */
+        .add-task-form {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .form-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d1d6;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+        }
+
+        button {
+            background-color: #007aff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        button:hover {
+            background-color: #0051d5;
+        }
+
+        button.secondary {
+            background-color: #8e8e93;
+        }
+
+        button.secondary:hover {
+            background-color: #636366;
+        }
+
+        button.danger {
+            background-color: #ff3b30;
+        }
+
+        button.danger:hover {
+            background-color: #d70015;
+        }
+
+        /* タブとフィルター */
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+        }
+
+        .tab {
+            padding: 8px 16px;
+            background-color: #e5e5ea;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        .tab.active {
+            background-color: #007aff;
+            color: white;
+        }
+
+        .filter {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* タスク一覧テーブル */
+        .task-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .task-table th {
+            background-color: #f5f5f7;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #1d1d1f;
+            border-bottom: 2px solid #d1d1d6;
+            position: sticky;
+            top: 0;
+            font-size: 14px;
+        }
+
+        .task-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e5e5ea;
+            font-size: 14px;
+        }
+
+        .task-table tr:hover {
+            background-color: #f9f9f9;
+        }
+
+        .task-row.child-task {
+            background-color: #f5f5f7;
+        }
+
+        .task-row.child-task td:first-child {
+            padding-left: 40px;
+        }
+
+        .task-name {
+            cursor: pointer;
+            color: #007aff;
+        }
+
+        .task-name:hover {
+            text-decoration: underline;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-todo {
+            background-color: #e5e5ea;
+            color: #1d1d1f;
+        }
+
+        .status-inprogress {
+            background-color: #007aff;
+            color: white;
+        }
+
+        .status-done {
+            background-color: #34c759;
+            color: white;
+        }
+
+        .interrupt-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            background-color: #ff9500;
+            color: white;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .type-badge {
+            font-size: 13px;
+            color: #555;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        /* 編集モード */
+        .edit-mode input,
+        .edit-mode select,
+        .edit-mode textarea {
+            width: 100%;
+            padding: 4px 8px;
+            border: 1px solid #007aff;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        /* モーダル */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            font-size: 20px;
+            color: #1d1d1f;
+        }
+
+        .close-modal {
+            background-color: transparent;
+            color: #8e8e93;
+            font-size: 24px;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+        }
+
+        .close-modal:hover {
+            background-color: #e5e5ea;
+            border-radius: 50%;
+        }
+
+        .child-task-form {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+
+        .child-task-form h3 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #8e8e93;
+        }
+
+        .deadline-today {
+            color: #ff9500;
+            font-weight: 600;
+        }
+
+        .deadline-passed {
+            color: #ff3b30;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>タスク優先度管理</h1>
+
+        <!-- 新規タスク追加フォーム -->
+        <div class="add-task-form">
+            <h2 style="margin-bottom: 15px; font-size: 18px;">新規タスク追加</h2>
+            <form id="addTaskForm">
+                <div class="form-row">
+                    <div class="form-group" style="flex: 2;">
+                        <label for="taskName">タスク名 *</label>
+                        <input type="text" id="taskName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="taskType">種別 *</label>
+                        <select id="taskType" required>
+                            <option value="delegate">他人に依頼が必要</option>
+                            <option value="quick">10分以内で終わる</option>
+                            <option value="other">その他</option>
+                            <option value="large">3日かかるタスク（要分解）</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="taskDeadline">期限</label>
+                        <input type="date" id="taskDeadline">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group" style="flex: 2;">
+                        <label for="taskMemo">メモ</label>
+                        <textarea id="taskMemo"></textarea>
+                    </div>
+                    <div class="form-group" style="flex: 0; min-width: auto;">
+                        <label>&nbsp;</label>
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="taskInterrupt">
+                            <label for="taskInterrupt">割り込みタスク</label>
+                        </div>
+                    </div>
+                </div>
+                <button type="submit">追加</button>
+            </form>
+        </div>
+
+        <!-- タブとフィルター -->
+        <div class="controls">
+            <div class="tabs">
+                <div class="tab active" data-tab="normal">通常タスク</div>
+                <div class="tab" data-tab="interrupt">割り込みタスク</div>
+                <div class="tab" data-tab="completed">完了タスク</div>
+            </div>
+            <div class="filter">
+                <input type="checkbox" id="filterToday">
+                <label for="filterToday">今日のタスクだけ表示</label>
+            </div>
+        </div>
+
+        <!-- タスク一覧テーブル -->
+        <div id="taskListContainer">
+            <table class="task-table">
+                <thead>
+                    <tr>
+                        <th>タスク名</th>
+                        <th>種別</th>
+                        <th>期限</th>
+                        <th>状態</th>
+                        <th>メモ</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="taskListBody">
+                    <!-- タスクがここに表示される -->
+                </tbody>
+            </table>
+            <div id="emptyState" class="empty-state" style="display: none;">
+                タスクがありません
+            </div>
+        </div>
+    </div>
+
+    <!-- 分解タスク追加モーダル -->
+    <div id="decomposeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>タスクを分解</h2>
+                <button class="close-modal" onclick="closeDecomposeModal()">×</button>
+            </div>
+            <div id="parentTaskInfo" style="margin-bottom: 20px; padding: 10px; background-color: #f5f5f7; border-radius: 6px;">
+                <!-- 親タスク情報が表示される -->
+            </div>
+            <div id="childTasksContainer">
+                <!-- 子タスク入力フォームが追加される -->
+            </div>
+            <button onclick="addChildTaskForm()">子タスクを追加</button>
+            <div style="margin-top: 20px; display: flex; gap: 10px;">
+                <button onclick="saveDecomposedTasks()">保存</button>
+                <button class="secondary" onclick="closeDecomposeModal()">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========================================
+        // データ管理
+        // ========================================
+
+        let tasks = [];
+        let currentTab = 'normal';
+        let filterTodayOnly = false;
+        let decomposingTaskId = null;
+
+        // localStorageからタスクを読み込み
+        function loadTasks() {
+            const stored = localStorage.getItem('tasks');
+            if (stored) {
+                tasks = JSON.parse(stored);
+            }
+        }
+
+        // localStorageにタスクを保存
+        function saveTasks() {
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+        }
+
+        // ========================================
+        // タスク操作
+        // ========================================
+
+        // 新規タスク追加
+        document.getElementById('addTaskForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const task = {
+                id: Date.now().toString(),
+                name: document.getElementById('taskName').value,
+                type: document.getElementById('taskType').value,
+                deadline: document.getElementById('taskDeadline').value,
+                memo: document.getElementById('taskMemo').value,
+                status: 'todo',
+                isInterrupt: document.getElementById('taskInterrupt').checked,
+                createdAt: Date.now(),
+                parentId: null,
+                children: []
+            };
+
+            tasks.push(task);
+            saveTasks();
+
+            // フォームをリセット
+            this.reset();
+
+            renderTasks();
+        });
+
+        // タスク削除
+        function deleteTask(taskId) {
+            if (!confirm('このタスクを削除しますか？')) return;
+
+            // 子タスクも削除
+            const task = tasks.find(t => t.id === taskId);
+            if (task && task.children && task.children.length > 0) {
+                task.children.forEach(childId => {
+                    tasks = tasks.filter(t => t.id !== childId);
+                });
+            }
+
+            // 親タスクから子として参照されている場合は削除
+            const parent = tasks.find(t => t.children && t.children.includes(taskId));
+            if (parent) {
+                parent.children = parent.children.filter(id => id !== taskId);
+            }
+
+            tasks = tasks.filter(t => t.id !== taskId);
+            saveTasks();
+            renderTasks();
+        }
+
+        // タスクの状態をトグル
+        function toggleTaskStatus(taskId) {
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            const statusOrder = ['todo', 'inprogress', 'done'];
+            const currentIndex = statusOrder.indexOf(task.status);
+            const nextIndex = (currentIndex + 1) % statusOrder.length;
+            task.status = statusOrder[nextIndex];
+
+            saveTasks();
+            renderTasks();
+        }
+
+        // 行内編集モード切り替え
+        function toggleEditMode(taskId) {
+            const row = document.querySelector(`tr[data-task-id="${taskId}"]`);
+            if (!row) return;
+
+            if (row.classList.contains('edit-mode')) {
+                // 保存
+                saveTaskEdit(taskId);
+            } else {
+                // 編集モードに入る
+                enterEditMode(taskId);
+            }
+        }
+
+        // 編集モードに入る
+        function enterEditMode(taskId) {
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            const row = document.querySelector(`tr[data-task-id="${taskId}"]`);
+            row.classList.add('edit-mode');
+
+            // 各セルを編集可能にする
+            row.innerHTML = `
+                <td>
+                    <input type="text" value="${escapeHtml(task.name)}" data-field="name">
+                </td>
+                <td>
+                    <select data-field="type">
+                        <option value="delegate" ${task.type === 'delegate' ? 'selected' : ''}>他人に依頼が必要</option>
+                        <option value="quick" ${task.type === 'quick' ? 'selected' : ''}>10分以内で終わる</option>
+                        <option value="other" ${task.type === 'other' ? 'selected' : ''}>その他</option>
+                        <option value="large" ${task.type === 'large' ? 'selected' : ''}>3日かかるタスク（要分解）</option>
+                    </select>
+                    <br>
+                    <label style="font-size: 12px; margin-top: 5px; display: inline-flex; align-items: center; gap: 5px;">
+                        <input type="checkbox" data-field="isInterrupt" ${task.isInterrupt ? 'checked' : ''}>
+                        割り込み
+                    </label>
+                </td>
+                <td>
+                    <input type="date" value="${task.deadline || ''}" data-field="deadline">
+                </td>
+                <td>
+                    <select data-field="status">
+                        <option value="todo" ${task.status === 'todo' ? 'selected' : ''}>未着手</option>
+                        <option value="inprogress" ${task.status === 'inprogress' ? 'selected' : ''}>進行中</option>
+                        <option value="done" ${task.status === 'done' ? 'selected' : ''}>完了</option>
+                    </select>
+                </td>
+                <td>
+                    <textarea data-field="memo">${escapeHtml(task.memo || '')}</textarea>
+                </td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="btn-small" onclick="toggleEditMode('${task.id}')">保存</button>
+                        <button class="btn-small secondary" onclick="cancelEdit('${task.id}')">キャンセル</button>
+                    </div>
+                </td>
+            `;
+        }
+
+        // 編集をキャンセル
+        function cancelEdit(taskId) {
+            renderTasks();
+        }
+
+        // 編集を保存
+        function saveTaskEdit(taskId) {
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            const row = document.querySelector(`tr[data-task-id="${taskId}"]`);
+
+            task.name = row.querySelector('[data-field="name"]').value;
+            task.type = row.querySelector('[data-field="type"]').value;
+            task.deadline = row.querySelector('[data-field="deadline"]').value;
+            task.status = row.querySelector('[data-field="status"]').value;
+            task.memo = row.querySelector('[data-field="memo"]').value;
+            task.isInterrupt = row.querySelector('[data-field="isInterrupt"]').checked;
+
+            saveTasks();
+            renderTasks();
+        }
+
+        // ========================================
+        // タスク分解機能
+        // ========================================
+
+        // 分解モーダルを開く
+        function openDecomposeModal(taskId) {
+            const task = tasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            decomposingTaskId = taskId;
+
+            document.getElementById('parentTaskInfo').innerHTML = `
+                <strong>親タスク:</strong> ${escapeHtml(task.name)}
+            `;
+
+            // 既存の子タスクがあれば表示
+            document.getElementById('childTasksContainer').innerHTML = '';
+            if (task.children && task.children.length > 0) {
+                task.children.forEach(childId => {
+                    const childTask = tasks.find(t => t.id === childId);
+                    if (childTask) {
+                        addChildTaskForm(childTask);
+                    }
+                });
+            } else {
+                // 新規の場合は1つ追加
+                addChildTaskForm();
+            }
+
+            document.getElementById('decomposeModal').classList.add('active');
+        }
+
+        // 分解モーダルを閉じる
+        function closeDecomposeModal() {
+            document.getElementById('decomposeModal').classList.remove('active');
+            decomposingTaskId = null;
+        }
+
+        // 子タスク入力フォームを追加
+        function addChildTaskForm(existingChild = null) {
+            const container = document.getElementById('childTasksContainer');
+            const childId = existingChild ? existingChild.id : `temp-${Date.now()}`;
+
+            const formHtml = `
+                <div class="child-task-form" data-child-id="${childId}">
+                    <h3>子タスク ${container.children.length + 1}</h3>
+                    <div class="form-group">
+                        <label>タスク名 *</label>
+                        <input type="text" data-field="name" value="${existingChild ? escapeHtml(existingChild.name) : ''}" required>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>種別 *</label>
+                            <select data-field="type">
+                                <option value="delegate" ${existingChild && existingChild.type === 'delegate' ? 'selected' : ''}>他人に依頼が必要</option>
+                                <option value="quick" ${existingChild && existingChild.type === 'quick' ? 'selected' : ''}>10分以内で終わる</option>
+                                <option value="other" ${existingChild && existingChild.type === 'other' ? 'selected' : ''}>その他</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>期限</label>
+                            <input type="date" data-field="deadline" value="${existingChild ? existingChild.deadline || '' : ''}">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>メモ</label>
+                        <textarea data-field="memo">${existingChild ? escapeHtml(existingChild.memo || '') : ''}</textarea>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" data-field="isInterrupt" ${existingChild && existingChild.isInterrupt ? 'checked' : ''}>
+                        <label>割り込みタスク</label>
+                    </div>
+                    <button type="button" class="danger btn-small" style="margin-top: 10px;" onclick="removeChildTaskForm('${childId}')">削除</button>
+                </div>
+            `;
+
+            const div = document.createElement('div');
+            div.innerHTML = formHtml;
+            container.appendChild(div.firstElementChild);
+        }
+
+        // 子タスクフォームを削除
+        function removeChildTaskForm(childId) {
+            const form = document.querySelector(`.child-task-form[data-child-id="${childId}"]`);
+            if (form) {
+                // 既存の子タスクの場合は実際に削除
+                if (!childId.startsWith('temp-')) {
+                    tasks = tasks.filter(t => t.id !== childId);
+                }
+                form.remove();
+            }
+        }
+
+        // 分解したタスクを保存
+        function saveDecomposedTasks() {
+            const parentTask = tasks.find(t => t.id === decomposingTaskId);
+            if (!parentTask) return;
+
+            const childForms = document.querySelectorAll('.child-task-form');
+            const newChildIds = [];
+
+            childForms.forEach(form => {
+                const childId = form.getAttribute('data-child-id');
+                const name = form.querySelector('[data-field="name"]').value;
+
+                if (!name.trim()) return;
+
+                let childTask;
+
+                // 既存の子タスクか新規か
+                if (childId.startsWith('temp-')) {
+                    // 新規子タスク
+                    childTask = {
+                        id: Date.now().toString() + '-' + Math.random().toString(36).substr(2, 9),
+                        name: name,
+                        type: form.querySelector('[data-field="type"]').value,
+                        deadline: form.querySelector('[data-field="deadline"]').value,
+                        memo: form.querySelector('[data-field="memo"]').value,
+                        status: 'todo',
+                        isInterrupt: form.querySelector('[data-field="isInterrupt"]').checked,
+                        createdAt: Date.now(),
+                        parentId: decomposingTaskId,
+                        children: []
+                    };
+                    tasks.push(childTask);
+                } else {
+                    // 既存の子タスクを更新
+                    childTask = tasks.find(t => t.id === childId);
+                    if (childTask) {
+                        childTask.name = name;
+                        childTask.type = form.querySelector('[data-field="type"]').value;
+                        childTask.deadline = form.querySelector('[data-field="deadline"]').value;
+                        childTask.memo = form.querySelector('[data-field="memo"]').value;
+                        childTask.isInterrupt = form.querySelector('[data-field="isInterrupt"]').checked;
+                    }
+                }
+
+                if (childTask) {
+                    newChildIds.push(childTask.id);
+                }
+            });
+
+            parentTask.children = newChildIds;
+            saveTasks();
+            closeDecomposeModal();
+            renderTasks();
+        }
+
+        // ========================================
+        // 表示・ソート・フィルター
+        // ========================================
+
+        // タスクをソート
+        function sortTasks(taskList) {
+            const typePriority = {
+                'delegate': 1,
+                'quick': 2,
+                'other': 3,
+                'large': 4
+            };
+
+            return taskList.sort((a, b) => {
+                // 種別で比較
+                if (typePriority[a.type] !== typePriority[b.type]) {
+                    return typePriority[a.type] - typePriority[b.type];
+                }
+
+                // 期限で比較
+                if (a.deadline && b.deadline) {
+                    return new Date(a.deadline) - new Date(b.deadline);
+                } else if (a.deadline) {
+                    return -1;
+                } else if (b.deadline) {
+                    return 1;
+                }
+
+                // 登録日時で比較
+                return a.createdAt - b.createdAt;
+            });
+        }
+
+        // タスクをフィルター
+        function filterTasks() {
+            let filtered = tasks.filter(t => !t.parentId); // 親タスクのみ（子タスクは親の下に表示）
+
+            // タブによるフィルター
+            if (currentTab === 'normal') {
+                filtered = filtered.filter(t => !t.isInterrupt && t.status !== 'done');
+            } else if (currentTab === 'interrupt') {
+                filtered = filtered.filter(t => t.isInterrupt && t.status !== 'done');
+            } else if (currentTab === 'completed') {
+                filtered = filtered.filter(t => t.status === 'done');
+            }
+
+            // 今日のタスクフィルター
+            if (filterTodayOnly) {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                filtered = filtered.filter(t => {
+                    if (!t.deadline) return false;
+                    const deadline = new Date(t.deadline);
+                    deadline.setHours(0, 0, 0, 0);
+                    return deadline <= today;
+                });
+            }
+
+            return sortTasks(filtered);
+        }
+
+        // タスクを表示
+        function renderTasks() {
+            const tbody = document.getElementById('taskListBody');
+            const filtered = filterTasks();
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '';
+                document.getElementById('emptyState').style.display = 'block';
+                return;
+            }
+
+            document.getElementById('emptyState').style.display = 'none';
+            tbody.innerHTML = '';
+
+            filtered.forEach(task => {
+                renderTaskRow(task, tbody);
+
+                // 子タスクを表示
+                if (task.children && task.children.length > 0) {
+                    task.children.forEach(childId => {
+                        const childTask = tasks.find(t => t.id === childId);
+                        if (childTask) {
+                            renderTaskRow(childTask, tbody, true);
+                        }
+                    });
+                }
+            });
+        }
+
+        // タスク行を表示
+        function renderTaskRow(task, tbody, isChild = false) {
+            const row = document.createElement('tr');
+            row.setAttribute('data-task-id', task.id);
+            if (isChild) {
+                row.classList.add('child-task');
+            }
+
+            // 種別表示
+            const typeLabels = {
+                'delegate': '他人に依頼が必要',
+                'quick': '10分以内で終わる',
+                'other': 'その他',
+                'large': '3日かかるタスク'
+            };
+
+            // 状態表示
+            const statusLabels = {
+                'todo': '未着手',
+                'inprogress': '進行中',
+                'done': '完了'
+            };
+
+            // 期限の表示とスタイル
+            let deadlineHtml = task.deadline || '-';
+            if (task.deadline) {
+                const deadline = new Date(task.deadline);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                deadline.setHours(0, 0, 0, 0);
+
+                if (deadline < today) {
+                    deadlineHtml = `<span class="deadline-passed">${task.deadline}</span>`;
+                } else if (deadline.getTime() === today.getTime()) {
+                    deadlineHtml = `<span class="deadline-today">${task.deadline}</span>`;
+                } else {
+                    deadlineHtml = task.deadline;
+                }
+            }
+
+            // タスク名の表示
+            let taskNameHtml = `<span class="task-name" onclick="toggleTaskStatus('${task.id}')">${escapeHtml(task.name)}</span>`;
+            if (task.isInterrupt) {
+                taskNameHtml += ' <span class="interrupt-badge">割込</span>';
+            }
+
+            // 操作ボタン
+            let actionButtons = `
+                <button class="btn-small" onclick="toggleEditMode('${task.id}')">編集</button>
+                <button class="btn-small danger" onclick="deleteTask('${task.id}')">削除</button>
+            `;
+
+            if (task.type === 'large' && !isChild) {
+                actionButtons = `
+                    <button class="btn-small" onclick="openDecomposeModal('${task.id}')">分解</button>
+                    <button class="btn-small" onclick="toggleEditMode('${task.id}')">編集</button>
+                    <button class="btn-small danger" onclick="deleteTask('${task.id}')">削除</button>
+                `;
+            }
+
+            row.innerHTML = `
+                <td>${taskNameHtml}</td>
+                <td><span class="type-badge">${typeLabels[task.type]}</span></td>
+                <td>${deadlineHtml}</td>
+                <td><span class="status-badge status-${task.status}">${statusLabels[task.status]}</span></td>
+                <td>${escapeHtml(task.memo || '-')}</td>
+                <td>
+                    <div class="action-buttons">
+                        ${actionButtons}
+                    </div>
+                </td>
+            `;
+
+            tbody.appendChild(row);
+        }
+
+        // HTMLエスケープ
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ========================================
+        // イベントリスナー
+        // ========================================
+
+        // タブ切り替え
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                currentTab = this.getAttribute('data-tab');
+                renderTasks();
+            });
+        });
+
+        // 今日のタスクフィルター
+        document.getElementById('filterToday').addEventListener('change', function() {
+            filterTodayOnly = this.checked;
+            renderTasks();
+        });
+
+        // ========================================
+        // 初期化
+        // ========================================
+
+        loadTasks();
+        renderTasks();
+    </script>
+</body>
+</html>
