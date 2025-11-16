@@ -188,13 +188,17 @@
             padding-left: 40px;
         }
 
-        .task-name {
+        .clickable-cell {
             cursor: pointer;
-            color: #007aff;
+            transition: background-color 0.2s;
         }
 
-        .task-name:hover {
-            text-decoration: underline;
+        .clickable-cell:hover {
+            background-color: #f0f0f0;
+        }
+
+        .editing-cell {
+            padding: 4px !important;
         }
 
         .status-badge {
@@ -243,17 +247,6 @@
         .btn-small {
             padding: 6px 12px;
             font-size: 12px;
-        }
-
-        /* 編集モード */
-        .edit-mode input,
-        .edit-mode select,
-        .edit-mode textarea {
-            width: 100%;
-            padding: 4px 8px;
-            border: 1px solid #007aff;
-            border-radius: 4px;
-            font-size: 13px;
         }
 
         /* モーダル */
@@ -390,8 +383,7 @@
         <!-- タブとフィルター -->
         <div class="controls">
             <div class="tabs">
-                <div class="tab active" data-tab="normal">通常タスク</div>
-                <div class="tab" data-tab="interrupt">割り込みタスク</div>
+                <div class="tab active" data-tab="normal">未完了タスク</div>
                 <div class="tab" data-tab="completed">完了タスク</div>
             </div>
             <div class="filter">
@@ -408,9 +400,9 @@
                         <th>タスク名</th>
                         <th>種別</th>
                         <th>期限</th>
-                        <th>状態</th>
+                        <th>ステータス</th>
                         <th>メモ</th>
-                        <th>操作</th>
+                        <th>削除</th>
                     </tr>
                 </thead>
                 <tbody id="taskListBody">
@@ -520,100 +512,130 @@
             renderTasks();
         }
 
-        // タスクの状態をトグル
-        function toggleTaskStatus(taskId) {
+        // セルの編集モードに入る
+        function editCell(taskId, field) {
             const task = tasks.find(t => t.id === taskId);
             if (!task) return;
 
-            const statusOrder = ['todo', 'inprogress', 'done'];
-            const currentIndex = statusOrder.indexOf(task.status);
-            const nextIndex = (currentIndex + 1) % statusOrder.length;
-            task.status = statusOrder[nextIndex];
-
-            saveTasks();
-            renderTasks();
-        }
-
-        // 行内編集モード切り替え
-        function toggleEditMode(taskId) {
             const row = document.querySelector(`tr[data-task-id="${taskId}"]`);
-            if (!row) return;
+            const cells = row.querySelectorAll('td');
 
-            if (row.classList.contains('edit-mode')) {
-                // 保存
-                saveTaskEdit(taskId);
-            } else {
-                // 編集モードに入る
-                enterEditMode(taskId);
+            // すでに編集中のセルがあれば保存
+            const editingCell = document.querySelector('.editing-cell');
+            if (editingCell) {
+                const editingTaskId = editingCell.closest('tr').getAttribute('data-task-id');
+                const editingField = editingCell.getAttribute('data-field');
+                saveCellEdit(editingTaskId, editingField);
             }
+
+            let cellIndex, currentValue, inputHtml;
+
+            switch(field) {
+                case 'name':
+                    cellIndex = 0;
+                    currentValue = task.name;
+                    inputHtml = `<input type="text" value="${escapeHtml(currentValue)}" style="width: 100%; padding: 4px;">`;
+                    break;
+                case 'type':
+                    cellIndex = 1;
+                    currentValue = task.type;
+                    inputHtml = `
+                        <select style="width: 100%; padding: 4px;">
+                            <option value="">-- 選択してください --</option>
+                            <option value="delegate" ${currentValue === 'delegate' ? 'selected' : ''}>他人に依頼が必要</option>
+                            <option value="quick" ${currentValue === 'quick' ? 'selected' : ''}>10分以内で終わる</option>
+                            <option value="other" ${currentValue === 'other' ? 'selected' : ''}>その他</option>
+                            <option value="large" ${currentValue === 'large' ? 'selected' : ''}>3日かかるタスク（要分解）</option>
+                        </select>
+                    `;
+                    break;
+                case 'deadline':
+                    cellIndex = 2;
+                    currentValue = task.deadline || '';
+                    inputHtml = `<input type="date" value="${currentValue}" style="width: 100%; padding: 4px;">`;
+                    break;
+                case 'status':
+                    cellIndex = 3;
+                    currentValue = task.status;
+                    inputHtml = `
+                        <select style="width: 100%; padding: 4px;">
+                            <option value="todo" ${currentValue === 'todo' ? 'selected' : ''}>未着手</option>
+                            <option value="inprogress" ${currentValue === 'inprogress' ? 'selected' : ''}>進行中</option>
+                            <option value="done" ${currentValue === 'done' ? 'selected' : ''}>完了</option>
+                        </select>
+                    `;
+                    break;
+                case 'memo':
+                    cellIndex = 4;
+                    currentValue = task.memo || '';
+                    inputHtml = `<textarea style="width: 100%; padding: 4px; min-height: 60px;">${escapeHtml(currentValue)}</textarea>`;
+                    break;
+                default:
+                    return;
+            }
+
+            const cell = cells[cellIndex];
+            cell.classList.add('editing-cell');
+            cell.setAttribute('data-field', field);
+            cell.innerHTML = inputHtml;
+
+            // フォーカスを当てる
+            const input = cell.querySelector('input, select, textarea');
+            input.focus();
+
+            // Enterキーで保存、Escキーでキャンセル
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && field !== 'memo') {
+                    e.preventDefault();
+                    saveCellEdit(taskId, field);
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    renderTasks();
+                }
+            });
+
+            // フォーカスが外れたら保存
+            input.addEventListener('blur', function() {
+                setTimeout(() => {
+                    if (cell.classList.contains('editing-cell')) {
+                        saveCellEdit(taskId, field);
+                    }
+                }, 200);
+            });
         }
 
-        // 編集モードに入る
-        function enterEditMode(taskId) {
+        // セルの編集を保存
+        function saveCellEdit(taskId, field) {
             const task = tasks.find(t => t.id === taskId);
             if (!task) return;
 
             const row = document.querySelector(`tr[data-task-id="${taskId}"]`);
-            row.classList.add('edit-mode');
+            const cell = row.querySelector('.editing-cell');
+            if (!cell) return;
 
-            // 各セルを編集可能にする
-            row.innerHTML = `
-                <td>
-                    <input type="text" value="${escapeHtml(task.name)}" data-field="name">
-                </td>
-                <td>
-                    <select data-field="type">
-                        <option value="delegate" ${task.type === 'delegate' ? 'selected' : ''}>他人に依頼が必要</option>
-                        <option value="quick" ${task.type === 'quick' ? 'selected' : ''}>10分以内で終わる</option>
-                        <option value="other" ${task.type === 'other' ? 'selected' : ''}>その他</option>
-                        <option value="large" ${task.type === 'large' ? 'selected' : ''}>3日かかるタスク（要分解）</option>
-                    </select>
-                    <br>
-                    <label style="font-size: 12px; margin-top: 5px; display: inline-flex; align-items: center; gap: 5px;">
-                        <input type="checkbox" data-field="isInterrupt" ${task.isInterrupt ? 'checked' : ''}>
-                        割り込み
-                    </label>
-                </td>
-                <td>
-                    <input type="date" value="${task.deadline || ''}" data-field="deadline">
-                </td>
-                <td>
-                    <select data-field="status">
-                        <option value="todo" ${task.status === 'todo' ? 'selected' : ''}>未着手</option>
-                        <option value="inprogress" ${task.status === 'inprogress' ? 'selected' : ''}>進行中</option>
-                        <option value="done" ${task.status === 'done' ? 'selected' : ''}>完了</option>
-                    </select>
-                </td>
-                <td>
-                    <textarea data-field="memo">${escapeHtml(task.memo || '')}</textarea>
-                </td>
-                <td>
-                    <div class="action-buttons">
-                        <button class="btn-small" onclick="toggleEditMode('${task.id}')">保存</button>
-                        <button class="btn-small secondary" onclick="cancelEdit('${task.id}')">キャンセル</button>
-                    </div>
-                </td>
-            `;
-        }
+            const input = cell.querySelector('input, select, textarea');
+            const newValue = input.value;
 
-        // 編集をキャンセル
-        function cancelEdit(taskId) {
-            renderTasks();
-        }
-
-        // 編集を保存
-        function saveTaskEdit(taskId) {
-            const task = tasks.find(t => t.id === taskId);
-            if (!task) return;
-
-            const row = document.querySelector(`tr[data-task-id="${taskId}"]`);
-
-            task.name = row.querySelector('[data-field="name"]').value;
-            task.type = row.querySelector('[data-field="type"]').value;
-            task.deadline = row.querySelector('[data-field="deadline"]').value;
-            task.status = row.querySelector('[data-field="status"]').value;
-            task.memo = row.querySelector('[data-field="memo"]').value;
-            task.isInterrupt = row.querySelector('[data-field="isInterrupt"]').checked;
+            // 値を更新
+            switch(field) {
+                case 'name':
+                    if (newValue.trim()) {
+                        task.name = newValue;
+                    }
+                    break;
+                case 'type':
+                    task.type = newValue;
+                    break;
+                case 'deadline':
+                    task.deadline = newValue;
+                    break;
+                case 'status':
+                    task.status = newValue;
+                    break;
+                case 'memo':
+                    task.memo = newValue;
+                    break;
+            }
 
             saveTasks();
             renderTasks();
@@ -782,14 +804,18 @@
             };
 
             return taskList.sort((a, b) => {
-                // 種別で比較（未定義の場合は最下位）
+                // 1. 割り込みタスクを最優先
+                if (a.isInterrupt && !b.isInterrupt) return -1;
+                if (!a.isInterrupt && b.isInterrupt) return 1;
+
+                // 2. 種別で比較（未定義の場合は最下位）
                 const aPriority = typePriority[a.type] || 5;
                 const bPriority = typePriority[b.type] || 5;
                 if (aPriority !== bPriority) {
                     return aPriority - bPriority;
                 }
 
-                // 期限で比較
+                // 3. 期限で比較
                 if (a.deadline && b.deadline) {
                     return new Date(a.deadline) - new Date(b.deadline);
                 } else if (a.deadline) {
@@ -798,7 +824,7 @@
                     return 1;
                 }
 
-                // 登録日時で比較
+                // 4. 登録日時で比較
                 return a.createdAt - b.createdAt;
             });
         }
@@ -809,10 +835,10 @@
 
             // タブによるフィルター
             if (currentTab === 'normal') {
-                filtered = filtered.filter(t => !t.isInterrupt && t.status !== 'done');
-            } else if (currentTab === 'interrupt') {
-                filtered = filtered.filter(t => t.isInterrupt && t.status !== 'done');
+                // 未完了タスク（割り込みタスクも含む）
+                filtered = filtered.filter(t => t.status !== 'done');
             } else if (currentTab === 'completed') {
+                // 完了タスク
                 filtered = filtered.filter(t => t.status === 'done');
             }
 
@@ -903,31 +929,26 @@
             }
 
             // タスク名の表示
-            let taskNameHtml = `<span class="task-name" onclick="toggleTaskStatus('${task.id}')">${escapeHtml(task.name)}</span>`;
+            let taskNameHtml = `<span class="editable-cell">${escapeHtml(task.name)}</span>`;
             if (task.isInterrupt) {
                 taskNameHtml += ' <span class="interrupt-badge">割込</span>';
             }
 
-            // 操作ボタン
-            let actionButtons = `
-                <button class="btn-small" onclick="toggleEditMode('${task.id}')">編集</button>
-                <button class="btn-small danger" onclick="deleteTask('${task.id}')">削除</button>
-            `;
-
+            // 削除ボタン（分解ボタンも必要な場合は追加）
+            let actionButtons = `<button class="btn-small danger" onclick="deleteTask('${task.id}')" title="削除">🗑️</button>`;
             if (task.type === 'large' && !isChild) {
                 actionButtons = `
                     <button class="btn-small" onclick="openDecomposeModal('${task.id}')">分解</button>
-                    <button class="btn-small" onclick="toggleEditMode('${task.id}')">編集</button>
-                    <button class="btn-small danger" onclick="deleteTask('${task.id}')">削除</button>
+                    ${actionButtons}
                 `;
             }
 
             row.innerHTML = `
-                <td>${taskNameHtml}</td>
-                <td><span class="type-badge">${typeLabels[task.type]}</span></td>
-                <td>${deadlineHtml}</td>
-                <td><span class="status-badge status-${task.status}">${statusLabels[task.status]}</span></td>
-                <td>${escapeHtml(task.memo || '-')}</td>
+                <td class="clickable-cell" onclick="editCell('${task.id}', 'name')">${taskNameHtml}</td>
+                <td class="clickable-cell" onclick="editCell('${task.id}', 'type')"><span class="type-badge">${typeLabels[task.type]}</span></td>
+                <td class="clickable-cell" onclick="editCell('${task.id}', 'deadline')">${deadlineHtml}</td>
+                <td class="clickable-cell" onclick="editCell('${task.id}', 'status')"><span class="status-badge status-${task.status}">${statusLabels[task.status]}</span></td>
+                <td class="clickable-cell" onclick="editCell('${task.id}', 'memo')">${escapeHtml(task.memo || '-')}</td>
                 <td>
                     <div class="action-buttons">
                         ${actionButtons}
