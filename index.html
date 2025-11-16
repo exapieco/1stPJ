@@ -356,8 +356,9 @@
                         <input type="text" id="taskName" required>
                     </div>
                     <div class="form-group">
-                        <label for="taskType">種別 *</label>
+                        <label for="taskType">種別 <span id="typeRequiredMark">*</span></label>
                         <select id="taskType" required>
+                            <option value="">-- 選択してください --</option>
                             <option value="delegate">他人に依頼が必要</option>
                             <option value="quick">10分以内で終わる</option>
                             <option value="other">その他</option>
@@ -378,7 +379,7 @@
                         <label>&nbsp;</label>
                         <div class="checkbox-group">
                             <input type="checkbox" id="taskInterrupt">
-                            <label for="taskInterrupt">割り込みタスク</label>
+                            <label for="taskInterrupt">割込</label>
                         </div>
                     </div>
                 </div>
@@ -688,7 +689,7 @@
                     </div>
                     <div class="checkbox-group">
                         <input type="checkbox" data-field="isInterrupt" ${existingChild && existingChild.isInterrupt ? 'checked' : ''}>
-                        <label>割り込みタスク</label>
+                        <label>割込</label>
                     </div>
                     <button type="button" class="danger btn-small" style="margin-top: 10px;" onclick="removeChildTaskForm('${childId}')">削除</button>
                 </div>
@@ -776,13 +777,16 @@
                 'delegate': 1,
                 'quick': 2,
                 'other': 3,
-                'large': 4
+                'large': 4,
+                '': 5  // 種別未選択(割り込みタスク用)
             };
 
             return taskList.sort((a, b) => {
-                // 種別で比較
-                if (typePriority[a.type] !== typePriority[b.type]) {
-                    return typePriority[a.type] - typePriority[b.type];
+                // 種別で比較（未定義の場合は最下位）
+                const aPriority = typePriority[a.type] || 5;
+                const bPriority = typePriority[b.type] || 5;
+                if (aPriority !== bPriority) {
+                    return aPriority - bPriority;
                 }
 
                 // 期限で比較
@@ -867,6 +871,7 @@
 
             // 種別表示
             const typeLabels = {
+                '': '-',
                 'delegate': '他人に依頼が必要',
                 'quick': '10分以内で終わる',
                 'other': 'その他',
@@ -958,6 +963,22 @@
         document.getElementById('filterToday').addEventListener('change', function() {
             filterTodayOnly = this.checked;
             renderTasks();
+        });
+
+        // 割り込みタスクチェック時に種別の必須状態を切り替え
+        document.getElementById('taskInterrupt').addEventListener('change', function() {
+            const taskTypeSelect = document.getElementById('taskType');
+            const requiredMark = document.getElementById('typeRequiredMark');
+
+            if (this.checked) {
+                // 割り込みタスクがチェックされたら種別は任意
+                taskTypeSelect.removeAttribute('required');
+                requiredMark.style.display = 'none';
+            } else {
+                // チェックが外れたら種別は必須
+                taskTypeSelect.setAttribute('required', 'required');
+                requiredMark.style.display = 'inline';
+            }
         });
 
         // ========================================
